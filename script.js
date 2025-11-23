@@ -1,99 +1,212 @@
-const balanceEl = document.getElementById("balance");
-const incomeAmountEl = document.getElementById("income-amount");
-const expenseAmountEl = document.getElementById("expense-amount");
-const transactionListEl = document.getElementById("transaction-list");
-const transactionFormEl = document.getElementById("transaction-form");
-const descriptionEl = document.getElementById("description");
-const amountEl = document.getElementById("amount");
+// DOM Elements Cache
+const DOM = {
+  balance: document.getElementById("balance"),
+  incomeAmount: document.getElementById("income-amount"),
+  expenseAmount: document.getElementById("expense-amount"),
+  transactionList: document.getElementById("transaction-list"),
+  transactionForm: document.getElementById("transaction-form"),
+  description: document.getElementById("description"),
+  amount: document.getElementById("amount"),
+  category: document.getElementById("category"),
+  date: document.getElementById("date"),
+  searchInput: document.getElementById("search-input"),
+  categoryFilter: document.getElementById("category-filter")
+};
 
+// State
 let transactions = JSON.parse(localStorage.getItem("transactions")) || [];
+let editingId = null;
+let chart = null;
 
-transactionFormEl.addEventListener("submit", addTransaction);
+// Constants
+const COLORS = ['#059669', '#047857', '#065f46', '#064e3b', '#022c22', '#16a34a', '#15803d', '#166534', '#14532d', '#052e16'];
+const CURRENCY_FORMAT = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+const DATE_FORMAT = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-function addTransaction(e) {
-  e.preventDefault();
-
-  // get form values
-  const description = descriptionEl.value.trim();
-  const amount = parseFloat(amountEl.value);
-
-  transactions.push({
-    id: Date.now(),
-    description,
-    amount,
-  });
-
-  localStorage.setItem("transactions", JSON.stringify(transactions));
-
+// Utility Functions
+const formatCurrency = amount => CURRENCY_FORMAT.format(amount);
+const formatDate = dateString => DATE_FORMAT.format(new Date(dateString));
+const saveTransactions = () => localStorage.setItem("transactions", JSON.stringify(transactions));
+const getTransactionById = id => transactions.find(t => t.id === id);
+const updateUI = () => {
   updateTransactionList();
   updateSummary();
+  updateChart();
+};
 
-  transactionFormEl.reset();
+// Event Handlers
+const handleFormSubmit = e => {
+  e.preventDefault();
+  editingId ? updateTransaction(editingId) : addTransaction();
+};
+
+const handleFilter = () => {
+  const search = DOM.searchInput.value.toLowerCase();
+  const category = DOM.categoryFilter.value;
+  const filtered = transactions.filter(t =>
+    (!search || t.description.toLowerCase().includes(search) || t.category.toLowerCase().includes(search)) &&
+    (!category || t.category === category)
+  );
+  updateTransactionList(filtered);
+};
+
+// Main Functions
+function addTransaction() {
+  const data = {
+    description: DOM.description.value.trim(),
+    amount: parseFloat(DOM.amount.value),
+    category: DOM.category.value,
+    date: DOM.date.value
+  };
+
+  if (!data.category) return alert("Please select a category");
+
+  transactions.push({ id: Date.now(), ...data });
+  saveTransactions();
+  updateUI();
+  resetForm();
 }
 
-function updateTransactionList() {
-  transactionListEl.innerHTML = "";
-
-  const sortedTransactions = [...transactions].reverse();
-
-  sortedTransactions.forEach((transaction) => {
-    const transactionEl = createTransactionElement(transaction);
-    transactionListEl.appendChild(transactionEl);
-  });
+function updateTransactionList(filtered = null) {
+  const list = filtered || [...transactions].reverse();
+  DOM.transactionList.innerHTML = list.map(createTransactionElement).join('');
 }
 
-function createTransactionElement(transaction) {
-  const li = document.createElement("li");
-  li.classList.add("transaction");
-  li.classList.add(transaction.amount > 0 ? "income" : "expense");
-
-  li.innerHTML = `
-    <span>${transaction.description}</span>
-    <span>
-  
-    ${formatCurrency(transaction.amount)}
-      <button class="delete-btn" onclick="removeTransaction(${transaction.id})">x</button>
-    </span>
+function createTransactionElement(t) {
+  const isIncome = t.amount > 0;
+  return `
+    <li class="transaction ${isIncome ? 'income' : 'expense'}">
+      <div class="transaction-info">
+        <span class="transaction-description">${t.description}</span>
+        <span class="transaction-category">${t.category.charAt(0).toUpperCase() + t.category.slice(1)}</span>
+        <span class="transaction-date">${formatDate(t.date)}</span>
+      </div>
+      <span class="transaction-amount">
+        ${formatCurrency(t.amount)}
+        <button class="edit-btn" onclick="editTransaction(${t.id})" title="Edit">
+          <i class="fas fa-edit"></i>
+        </button>
+        <button class="delete-btn" onclick="removeTransaction(${t.id})" title="Delete">
+          <i class="fas fa-trash"></i>
+        </button>
+      </span>
+    </li>
   `;
-
-  return li;
 }
 
-function updateSummary() {
-  // 100, -50, 200, -200 => 50
-  const balance = transactions.reduce((acc, transaction) => acc + transaction.amount, 0);
+function editTransaction(id) {
+  const t = getTransactionById(id);
+  if (!t) return;
 
-  const income = transactions
-    .filter((transaction) => transaction.amount > 0)
-    .reduce((acc, transaction) => acc + transaction.amount, 0);
+  editingId = id;
+  Object.assign(DOM, {
+    description: { value: t.description },
+    amount: { value: t.amount },
+    category: { value: t.category },
+    date: { value: t.date }
+  });
 
-  const expenses = transactions
-    .filter((transaction) => transaction.amount < 0)
-    .reduce((acc, transaction) => acc + transaction.amount, 0);
-
-  // update ui => todo: fix the formatting
-  balanceEl.textContent = formatCurrency(balance);
-  incomeAmountEl.textContent = formatCurrency(income);
-  expenseAmountEl.textContent = formatCurrency(expenses);
+  document.querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-save"></i> Update';
+  document.querySelector('.form-container').scrollIntoView({ behavior: 'smooth' });
 }
 
-function formatCurrency(number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(number);
+function updateTransaction(id) {
+  const data = {
+    description: DOM.description.value.trim(),
+    amount: parseFloat(DOM.amount.value),
+    category: DOM.category.value,
+    date: DOM.date.value
+  };
+
+  if (!data.category) return alert("Please select a category");
+
+  const index = transactions.findIndex(t => t.id === id);
+  if (index === -1) return;
+
+  transactions[index] = { ...transactions[index], ...data };
+  saveTransactions();
+  updateUI();
+  resetForm();
 }
 
 function removeTransaction(id) {
-  // filter out the one we wanted to delete
-  transactions = transactions.filter((transaction) => transaction.id !== id);
-
-  localStorage.setItem("transcations", JSON.stringify(transactions));
-
-  updateTransactionList();
-  updateSummary();
+  transactions = transactions.filter(t => t.id !== id);
+  saveTransactions();
+  updateUI();
 }
 
-// initial render
-updateTransactionList();
-updateSummary();
+function updateChart() {
+  const ctx = document.getElementById('expenseChart');
+  if (!ctx) return;
+
+  const categoryTotals = transactions
+    .filter(t => t.amount < 0)
+    .reduce((acc, t) => {
+      const cat = t.category;
+      acc[cat] = (acc[cat] || 0) + Math.abs(t.amount);
+      return acc;
+    }, {});
+
+  const labels = Object.keys(categoryTotals);
+  const data = Object.values(categoryTotals);
+
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels.map(l => l.charAt(0).toUpperCase() + l.slice(1)),
+      datasets: [{
+        data,
+        backgroundColor: COLORS.slice(0, labels.length),
+        borderColor: COLORS.slice(0, labels.length).map(c => c + '80'),
+        borderWidth: 2,
+        hoverBorderWidth: 3,
+        hoverBorderColor: '#FFF'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { padding: 20, usePointStyle: true, font: { size: 12, family: 'Poppins' } } },
+        tooltip: {
+          callbacks: { label: ctx => `${ctx.label}: ${formatCurrency(ctx.parsed)}` },
+          backgroundColor: 'rgba(5, 150, 105, 0.9)',
+          titleColor: '#FFF',
+          bodyColor: '#FFF',
+          cornerRadius: 8
+        }
+      },
+      animation: { animateScale: true, animateRotate: true, duration: 1000, easing: 'easeOutBounce' }
+    }
+  });
+}
+
+function updateSummary() {
+  const { income, expense } = transactions.reduce((acc, t) => {
+    if (t.amount > 0) acc.income += t.amount;
+    else acc.expense += Math.abs(t.amount);
+    return acc;
+  }, { income: 0, expense: 0 });
+
+  DOM.balance.textContent = formatCurrency(income - expense);
+  DOM.incomeAmount.textContent = formatCurrency(income);
+  DOM.expenseAmount.textContent = formatCurrency(expense);
+}
+
+function resetForm() {
+  DOM.transactionForm.reset();
+  DOM.date.valueAsDate = new Date();
+  editingId = null;
+  document.querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-save"></i> Add Transaction';
+}
+
+// Event Listeners
+DOM.transactionForm.addEventListener("submit", handleFormSubmit);
+DOM.searchInput.addEventListener("input", handleFilter);
+DOM.categoryFilter.addEventListener("change", handleFilter);
+
+// Initialize
+updateUI();
+DOM.date.valueAsDate = new Date();

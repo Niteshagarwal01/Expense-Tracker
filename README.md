@@ -1,6 +1,6 @@
 # 💰 Expense Tracker — Modern Web App(Small Build#3)
 
-<img width="1200" alt="expense<img width="2752" height="1536" alt="Gemini_Generated_Image_a75d9ya75d9ya75d (1)" src="https://github.com/user-attachments/assets/bc6fad00-0834-4877-8c29-6288c46e9203" />
+<img width="2752" height="1536" alt="Gemini_Generated_Image_a75d9ya75d9ya75d (1)" src="https://github.com/user-attachments/assets/bc6fad00-0834-4877-8c29-6288c46e9203" />
 
 
 A modern, responsive expense tracking web application built with optimized vanilla JavaScript, featuring beautiful animations, data visualization, and comprehensive transaction management.
